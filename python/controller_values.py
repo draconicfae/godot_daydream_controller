@@ -3,9 +3,7 @@
 #This script is adapted from the bluez sample script test/example-gatt-client
 
 import dbus
-import socket
 import json
-from argparse import ArgumentParser
 
 try:
   from gi.repository import GObject
@@ -14,30 +12,6 @@ except ImportError:
 import sys
 
 from dbus.mainloop.glib import DBusGMainLoop
-
-#socket variables
-HOST = None
-PORT = None
-
-sock = None
-
-#dbus variables etc
-bus = None
-mainloop = None
-
-BLUEZ_SERVICE_NAME = 'org.bluez'
-DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
-DBUS_PROP_IFACE =    'org.freedesktop.DBus.Properties'
-
-GATT_SERVICE_IFACE = 'org.bluez.GattService1'
-GATT_CHRC_IFACE =    'org.bluez.GattCharacteristic1'
-
-CONTROLLER_SERVICE_UUID = '0000fe55-0000-1000-8000-00805f9b34fb'
-CONTROLLER_DATA_UUID = '00000001-1000-1000-8000-00805f9b34fb'
-
-# The objects that we interact with.
-controller_service = None
-controller_chrc = None
 
 def get_bin_string(byteval):
     binstr = str(bin(byteval))
@@ -205,164 +179,156 @@ class controller_state:
         dictee['gyro']['y'] = self.gyro_y_position
         dictee['gyro']['z'] = self.gyro_z_position
             
-        return dictee
+        return dictee  
+
+class daydream_bluetooth:
+    def __init__(self, eclass=None):
+        #class responsible for emitting the controller data
+        self.emitclass = eclass
+
+        # Set up the main loop.
+        DBusGMainLoop(set_as_default=True)
+        self.bus = dbus.SystemBus()
+        self.mainloop = GObject.MainLoop()
+
+        self.BLUEZ_SERVICE_NAME = 'org.bluez'
+        self.DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
+        self.DBUS_PROP_IFACE =    'org.freedesktop.DBus.Properties'
+
+        self.GATT_SERVICE_IFACE = 'org.bluez.GattService1'
+        self.GATT_CHRC_IFACE =    'org.bluez.GattCharacteristic1'
+
+        self.CONTROLLER_SERVICE_UUID = '0000fe55-0000-1000-8000-00805f9b34fb'
+        self.CONTROLLER_DATA_UUID = '00000001-1000-1000-8000-00805f9b34fb'
+
+        om = dbus.Interface(self.bus.get_object(self.BLUEZ_SERVICE_NAME, '/'), self.DBUS_OM_IFACE)
+        om.connect_to_signal('InterfacesRemoved', self.interfaces_removed_cb)
+
+        print('Getting objects...')
+        objects = om.GetManagedObjects()
+        chrcs = []
+
+        # List characteristics found
+        for path, interfaces in objects.items():
+            if self.GATT_CHRC_IFACE not in interfaces.keys():
+                continue
+            chrcs.append(path)
+
+
+        # The objects that we interact with.
+        self.controller_service = None
+        self.controller_chrc = None
+
+        # List sevices found
+        for path, interfaces in objects.items():
+            if self.GATT_SERVICE_IFACE not in interfaces.keys():
+                continue
+
+            chrc_paths = [d for d in chrcs if d.startswith(path + "/")]
+
+            if self.process_controller_service(path, chrc_paths):
+                break
+
+        if not self.controller_service:
+            print('No Controller Service found')
+            sys.exit(1)
+
+        self.start_client()
+
         
-def generic_error_cb(error):
-    print('D-Bus call failed: ' + str(error))
-    mainloop.quit()
+    def generic_error_cb(self, error):
+        print('D-Bus call failed: ' + str(error))
+        self.mainloop.quit()
 
     
-def get_hex_string(byteval):
-    hexstr = str(hex(byteval))
-    hexstr = hexstr[2:]
-    if len(hexstr) == 1:
-        hexstr = '0' + hexstr
+    def get_hex_string(self, byteval):
+        hexstr = str(hex(byteval))
+        hexstr = hexstr[2:]
+        if len(hexstr) == 1:
+            hexstr = '0' + hexstr
         
-def controller_changed_cb(iface, changed_props, invalidated_props):
-    if iface != GATT_CHRC_IFACE:
-        return
+    def controller_changed_cb(self, iface, changed_props, invalidated_props):
+        if iface != self.GATT_CHRC_IFACE:
+            return
 
-    if not len(changed_props):
-        return
+        if not len(changed_props):
+            return
 
-    value = changed_props.get('Value', None)
-    if not value:
-        return
+        value = changed_props.get('Value', None)
+        if not value:
+            return
 
-    current_controller_state = controller_state(value)
-    if sock:
-        try:
-            sock.sendall(json.dumps(current_controller_state.as_dict()).encode())
-        except ConnectionRefusedError:
-            pass
-            #uncomment if you want to be notified
-            #print("cannot send controller data, the destination is either not listening yet or is refusing to connect.  Check to see if it's running yet.")
-    else:
-        #echo the values to standard out
-        print(current_controller_state.as_dict())
+        current_controller_state = controller_state(value)
+        if self.emitclass:
+            self.emitclass.emit(json.dumps(current_controller_state.as_dict()).encode())
+        else:
+            print(current_controller_state.as_dict())
 
+    def controller_start_notify_cb(self):
+        print('Controller notifications enabled')
 
-def controller_start_notify_cb():
-    print('Controller notifications enabled')
-
-def start_client():
-    controller_prop_iface = dbus.Interface(controller_chrc[0], DBUS_PROP_IFACE)
-    controller_prop_iface.connect_to_signal("PropertiesChanged",
-                                          controller_changed_cb)
+    def start_client(self):
+        controller_prop_iface = dbus.Interface(self.controller_chrc[0], self.DBUS_PROP_IFACE)
+        controller_prop_iface.connect_to_signal("PropertiesChanged",
+                                            self.controller_changed_cb)
     
-    # Subscribe to Controller notifications.
-    controller_chrc[0].StartNotify(reply_handler=controller_start_notify_cb,
-                                 error_handler=generic_error_cb,
-                                 dbus_interface=GATT_CHRC_IFACE)
+        # Subscribe to Controller notifications.
+        self.controller_chrc[0].StartNotify(reply_handler=self.controller_start_notify_cb,
+                                    error_handler=self.generic_error_cb,
+                                    dbus_interface=self.GATT_CHRC_IFACE)
 
 
-def process_chrc(chrc_path):
-    chrc = bus.get_object(BLUEZ_SERVICE_NAME, chrc_path)
-    chrc_props = chrc.GetAll(GATT_CHRC_IFACE,
-                             dbus_interface=DBUS_PROP_IFACE)
+    def process_chrc(self, chrc_path):
+        chrc = self.bus.get_object(self.BLUEZ_SERVICE_NAME, chrc_path)
+        chrc_props = chrc.GetAll(self.GATT_CHRC_IFACE,
+                             dbus_interface=self.DBUS_PROP_IFACE)
 
-    uuid = chrc_props['UUID']
+        uuid = chrc_props['UUID']
 
-    if uuid == CONTROLLER_DATA_UUID:
-        global controller_chrc
-        print("controller_chrc set here")
-        controller_chrc = (chrc, chrc_props)
-    else:
-        print('Unrecognized characteristic: ' + uuid)
+        if uuid == self.CONTROLLER_DATA_UUID:
+            self.controller_chrc = (chrc, chrc_props)
+        else:
+            print('Unrecognized characteristic: ' + uuid)
 
-    return True
+        return True
 
 
-def process_controller_service(service_path, chrc_paths):
-    service = bus.get_object(BLUEZ_SERVICE_NAME, service_path)
-    service_props = service.GetAll(GATT_SERVICE_IFACE,
-                                   dbus_interface=DBUS_PROP_IFACE)
+    def process_controller_service(self, service_path, chrc_paths):
+        service = self.bus.get_object(self.BLUEZ_SERVICE_NAME, service_path)
+        service_props = service.GetAll(self.GATT_SERVICE_IFACE,
+                                    dbus_interface=self.DBUS_PROP_IFACE)
 
-    uuid = service_props['UUID']
+        uuid = service_props['UUID']
 
-    if uuid != CONTROLLER_SERVICE_UUID:
-        return False
+        if uuid != self.CONTROLLER_SERVICE_UUID:
+            return False
 
-    print('Controller Service found: ' + service_path)
+        print('Controller Service found: ' + service_path)
 
-    # Process the characteristics.
-    for chrc_path in chrc_paths:
-        process_chrc(chrc_path)
+        # Process the characteristics.
+        for chrc_path in chrc_paths:
+            self.process_chrc(chrc_path)
 
-    global controller_service
-    controller_service = (service, service_props, service_path)
+        self.controller_service = (service, service_props, service_path)
 
-    return True
+        return True
 
 
-def interfaces_removed_cb(object_path, interfaces):
-    if not controller_service:
-        return
+    def interfaces_removed_cb(self, object_path, interfaces):
+        if not self.controller_service:
+            return
 
-    if object_path == controller_service[2]:
-        print('Service was removed')
-        mainloop.quit()
+        if object_path == self.controller_service[2]:
+            print('Service was removed')
+            self.mainloop.quit()
 
+    def run(self):
+        self.mainloop.run()
 
 def main():
-    #command line arguments
-    parser = ArgumentParser()
-    
-    #-h can't be used because it's reserved to mean help
-    parser.add_argument("-t", "--host", dest="host", default=None,
-                        help="host to use, eg 127.0.0.1")
-    parser.add_argument("-p", "--port",
-                        dest="port", default=None, type=int,
-                        help="port to use")
-
-    args = parser.parse_args()    
-    HOST = args.host
-    PORT = args.port
-    
-    # Set up the main loop.
-    DBusGMainLoop(set_as_default=True)
-    global bus
-    bus = dbus.SystemBus()
-    global mainloop
-    mainloop = GObject.MainLoop()
-    
-    if not HOST == None and not PORT == None:
-        global sock
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect((HOST, PORT))
-
-
-    om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'), DBUS_OM_IFACE)
-    om.connect_to_signal('InterfacesRemoved', interfaces_removed_cb)
-
-    print('Getting objects...')
-    objects = om.GetManagedObjects()
-    chrcs = []
-
-    # List characteristics found
-    for path, interfaces in objects.items():
-        if GATT_CHRC_IFACE not in interfaces.keys():
-            continue
-        chrcs.append(path)
-
-    # List sevices found
-    for path, interfaces in objects.items():
-        if GATT_SERVICE_IFACE not in interfaces.keys():
-            continue
-
-        chrc_paths = [d for d in chrcs if d.startswith(path + "/")]
-
-        if process_controller_service(path, chrc_paths):
-            break
-
-    if not controller_service:
-        print('No Controller Service found')
-        sys.exit(1)
-
-    start_client()
-
-    mainloop.run()
-
+    bluecontroller = daydream_bluetooth()
+    bluecontroller.run()
+  
 
 if __name__ == '__main__':
     main()
