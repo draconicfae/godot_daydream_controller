@@ -3,7 +3,6 @@
 #This script is adapted from the bluez sample script test/example-gatt-client
 
 import dbus
-import json
 
 try:
   from gi.repository import GObject
@@ -260,7 +259,7 @@ class daydream_bluetooth:
 
         current_controller_state = controller_state(value)
         if self.emitclass:
-            self.emitclass.emit(json.dumps(current_controller_state.as_dict()).encode())
+            self.emitclass.emit(current_controller_state.as_dict())
         else:
             print(current_controller_state.as_dict())
 

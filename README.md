@@ -20,7 +20,15 @@ The UUIDs and bit representations should be the same on other platforms so makin
 Make sure that the daydream controller is "connected", meaning that Bluetooth not only knows it exists but is also not in "disconnected" state.  OpenSuse seemed to require that I forcibly forget the daydream controller and reassociate it every time.  Arch seems to be able to cleanly connect and disconnect without requiring from-scratch re-association.  So your results may vary depending on your distro, even with Bluez being a common factor between them.
 
 # Echoing the controller data to command line rather than transmitting it anywhere
-run python/controller_values.py directly
+run python/controller_values.py directly.  This will provide a rapidfire series of current status messages whether you push buttons or not.
+
+# Using udev to deal with controller data
+You'll need python-evdev.  On Arch this is found in a package called python-evdev.
+
+Run python/control_value_sender.py with parameter --udev=true.  You'll likely need to run it as root unless your system allows non-root to create devices.
+
+# verifying udev generated controller data at the command line
+run python/udev_evdev_listener.py.  It will only echo status when you press or release buttons, as opposed to the very noisy status of running python/controller_values.py directly
 
 # Using a udp socket to transmit the controller data
 start python/con (or python/control_value_sender.py if you want to use a different port and/or hostname)
@@ -45,3 +53,5 @@ Launch the daydream controller Godot project located in demos/PureGDScript.  The
 5) With respect to HMDs, my personal use case is going to be to use the ARVR Server Interface "Native mobile" with the daydream controller serving the controller's role.  It should also be possible in theory to use something like the godot_oculus interface (ARVR Server Interface name "Oculus") or other server interfaces.  If you use a specialized server interface then you can have fun adding the daydream controller as an additional controller on top of whatever controller(s) your specialized interface already imports automatically.
 
 6) Apparently it's also possible to get independent data streams from multiple daydream controllers, to support a "left hand" and "right hand" simultaneous approach (see for instance https://hackernoon.com/how-i-hacked-google-daydream-controller-part-iii-12e75adc4829 ), but I only have one controller so if someone else wants to extend this for two-handedness they're welcome to.
+
+7) It's kludgy that Main.tscn is essentially copy/pasted between the GDScript demo and the UDev demo.  I spent some time trying to make Main.tscn a template scene but wasn't able to figure out how to do that.  It should be refactored to take that approach so that it's the same scene visually (without replication) and just has a different script controlling it.
