@@ -30,13 +30,16 @@ Run python/control_value_sender.py with parameter --udev=true.  You'll likely ne
 # verifying udev generated controller data at the command line
 run python/udev_evdev_listener.py.  It will only echo status when you press or release buttons, as opposed to the very noisy status of running python/controller_values.py directly
 
+# Seeing the controller values, via udev, in Godot
+Launch the daydream controller Godot project located in demos/UDev.  The Node2D scene labels will tell you the daydream controller values.  The response if very zippy and likely fast enough to work well for a playable game.
+
 # Using a udp socket to transmit the controller data
 start python/con (or python/control_value_sender.py if you want to use a different port and/or hostname)
 
-# Data pipeline to see the controller values, via udp socket, echoed outside Godot
+# Seeing the controller values, via udp socket, echoed outside Godot
 start python/serv (or python/valrec_server.py if you want to use a different port and/or hostname).  For me, this approach echos values without any noticeable lag.
 
-# Data pipeline to get the controller values to Godot via udp socket
+# Seeing the controller values in Godot via udp socket
 Launch the daydream controller Godot project located in demos/PureGDScript.  The Node2D scene labels will tell you the daydream controller values.  For some reason at the moment there's a very noticeable lag between controller state change and the value showing up in Godot, so there's a big need for performance tuning to get the responsiveness high enough for these controller values to be zippy enough to be part of a playable game.  At the moment the lag is big enough that if you try to make a game with it you'll probably end up wanting to throw your controller across the room.  It's possible that the stream lag is inherent to a GDScript approach and switching the data stream to GDNative is enough to solve it.  Hopefully I'll have the code for that soon.
 
 # Notes
