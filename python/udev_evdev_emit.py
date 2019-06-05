@@ -5,7 +5,12 @@ class udev_evdev_emit:
         print('initializing udev_evdev_emit')
         #several of these cap mappings are fake and just intended to ensure that Godot sees us as a valid controller
         #actual mappings: volup = BTN_0; voldown = BTN_1; app button = BTN_2; daydream button = BTN_3; touchpad button = BTN_4 
-        cap = { e.EV_KEY : [e.BTN_A, e.BTN_THUMBL, e.BTN_TRIGGER, e.BTN_0, e.BTN_1, e.BTN_2, e.BTN_3, e.BTN_4], e.EV_ABS : [e.ABS_X, e.ABS_Y, e.ABS_HAT0X, e.ABS_GAS, e.ABS_RUDDER]}
+        cap = { e.EV_KEY : [e.BTN_A, e.BTN_THUMBL, e.BTN_TRIGGER, e.BTN_0, e.BTN_1, e.BTN_2, e.BTN_3, e.BTN_4], 
+               e.EV_ABS : [(e.ABS_X, AbsInfo(value=0, min=0, max=255, fuzz=0, flat=0, resolution=0)), 
+                           (e.ABS_Y, AbsInfo(value=0, min=0, max=255, fuzz=0, flat=0, resolution=0)), 
+                           (e.ABS_HAT0X, AbsInfo(value=0, min=0, max=255, fuzz=0, flat=0, resolution=0)), 
+                           (e.ABS_GAS, AbsInfo(value=0, min=0, max=255, fuzz=0, flat=0, resolution=0)),
+                           (e.ABS_RUDDER, AbsInfo(value=0, min=0, max=255, fuzz=0, flat=0, resolution=0))]}
         self.ui = UInput(cap, name="daydream controller", version=0x3)
 
     def pressed_to_int(self, data):
@@ -20,4 +25,6 @@ class udev_evdev_emit:
         self.ui.write(e.EV_KEY, e.BTN_2, self.pressed_to_int(data['buttons']['app']))
         self.ui.write(e.EV_KEY, e.BTN_3, self.pressed_to_int(data['buttons']['daydream']))
         self.ui.write(e.EV_KEY, e.BTN_4, self.pressed_to_int(data['buttons']['touchpad']))
+        self.ui.write(e.EV_ABS, e.ABS_X, data['touchpad']['x'])
+        self.ui.write(e.EV_ABS, e.ABS_Y, data['touchpad']['y'])
         self.ui.syn()

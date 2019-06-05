@@ -113,7 +113,7 @@ func set_touchxy(vals):
 func _process(delta):
 	if not joy_mapped:
 		#a:b3 maps to volup; start:b4 maps to voldown; b:b5 maps to app button; x:b6 maps to daydream button; y:b7 maps to touchpad button
-		Input.add_joy_mapping("03000000010000000100000003000000,Daydream Controller,a:b3,start:b4,b:b5,x:b6,y:b7,platform:Linux",true)
+		Input.add_joy_mapping("03000000010000000100000003000000,Daydream Controller,a:b3,start:b4,b:b5,x:b6,y:b7,leftx:a0,lefty:a1,platform:Linux",true)
 
 		joy_mapped = true
 
@@ -124,3 +124,8 @@ func _process(delta):
 	vals['daydream'] = Input.is_joy_button_pressed(0,2)
 	vals['touchpad'] = Input.is_joy_button_pressed(0,3)
 	set_buttons(vals)
+	
+	var touchpad_coords = {}
+	touchpad_coords['x'] = Input.get_joy_axis(0,0)
+	touchpad_coords['y'] = Input.get_joy_axis(0,1)
+	set_touchxy(touchpad_coords)

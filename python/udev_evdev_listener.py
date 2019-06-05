@@ -11,7 +11,6 @@ TOUCHPAD = ecodes.BTN_4
 
 def print_event(ev):
     prepend = ''
-    
     if ev.type == ecodes.EV_KEY:
         if ev.code == VOLUP:
             prepend = 'volume up: '
@@ -27,6 +26,14 @@ def print_event(ev):
             prepend = 'unknown key: '
             
         print(prepend, ev.value)
+    elif ev.type == ecodes.EV_ABS:
+        touchstring = 'touchpad '
+        if ev.code == ecodes.ABS_X:
+            touchstring += 'x(' + str(ev.value) + ') '
+        if ev.code == ecodes.ABS_Y:
+            touchstring += 'y(' + str(ev.value) + ') '
+            
+        print(touchstring)
     
 async def helper(dev):
     async for ev in dev.async_read_loop():
